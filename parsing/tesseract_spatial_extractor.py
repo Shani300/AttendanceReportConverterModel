@@ -1,19 +1,39 @@
 # parsing/tesseract_spatial_extractor.py
+import cv2
+import numpy as np
 import pytesseract
 from pytesseract import Output
 from pdf2image import convert_from_path
+from PIL import Image
 from typing import List
 from parsing.spatial_extractor_interface import ISpatialExtractor
 from domain.models.text_element import TextElement
 from config.ocr_settings import OcrSettings
 
+
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
+
 class TesseractSpatialExtractor(ISpatialExtractor):
+
+    def _preprocess_image(self, pil_image: Image.Image) -> Image.Image:
+        """המרת התמונה לפורמט OpenCV וביצוע חידוד שחור-לבן"""
+        # המרה למערך פיקסלים
+        open_cv_image = np.array(pil_image)
+
+        # המרה לצבעי אפור
+        gray = cv2.cvtColor(open_cv_image, cv2.COLOR_RGB2GRAY)
+
+        # ניגודיות אגרסיבית (Thresholding) - הופך רקע ללבן ואותיות לשחור מוחלט
+        # ערך ה-150 הוא סף הרגישות. כל פיקסל כהה מ-150 יהפוך לשחור.
+        _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)
+
+        # חזרה לאובייקט PIL עבור Tesseract
+        return Image.fromarray(thresh)
+
     def extract_elements(self, file_path: str) -> List[TextElement]:
         elements = []
 
-        # המרת ה-PDF הסרוק לתמונות
         images = convert_from_path(
             file_path,
             dpi=OcrSettings.DEFAULT_DPI,
@@ -21,11 +41,13 @@ class TesseractSpatialExtractor(ISpatialExtractor):
         )
 
         for image in images:
-            # חילוץ נתונים מרחביים במקום טקסט שטוח
+            # הפעלת עיבוד התמונה לפני החילוץ
+            processed_image = self._preprocess_image(image)
+
             data = pytesseract.image_to_data(
-                image,
+                processed_image,
                 lang=OcrSettings.LANGUAGE_HEBREW_ENGLISH,
-                config=OcrSettings.CUSTOM_CONFIG,  # ודא שמוגדר --psm 6 ב-OCR Settings
+                config=OcrSettings.CUSTOM_CONFIG,
                 output_type=Output.DICT
             )
 
@@ -33,9 +55,7 @@ class TesseractSpatialExtractor(ISpatialExtractor):
             for i in range(n_boxes):
                 text = data['text'][i].strip()
 
-                # סינון זיהויים ריקים או רעשי רקע
                 if text:
-                    # המרת המידות של Tesseract לקואורדינטות מוחלטות
                     x0 = float(data['left'][i])
                     top = float(data['top'][i])
                     width = float(data['width'][i])
@@ -46,8 +66,8 @@ class TesseractSpatialExtractor(ISpatialExtractor):
                             text=text,
                             x0=x0,
                             top=top,
-                            x1=x0 + width,  # חישוב נקודת הסיום האופקית
-                            bottom=top + height  # חישוב נקודת הסיום האנכית
+                            x1=x0 + width,
+                            bottom=top + height
                         )
                     )
 
