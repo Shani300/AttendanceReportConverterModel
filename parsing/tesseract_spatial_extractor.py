@@ -16,20 +16,35 @@ pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tessera
 
 class TesseractSpatialExtractor(ISpatialExtractor):
 
-    def _preprocess_image(self, pil_image: Image.Image) -> Image.Image:
-        """המרת התמונה לפורמט OpenCV וביצוע חידוד שחור-לבן"""
-        # המרה למערך פיקסלים
-        open_cv_image = np.array(pil_image)
+    # בתוך הקובץ: parsing/tesseract_spatial_extractor.py
 
-        # המרה לצבעי אפור
+    def _preprocess_image(self, pil_image: Image.Image) -> Image.Image:
+        """המרת התמונה לפורמט OpenCV, חידוד והעלמת קווי רשת של טבלאות"""
+        open_cv_image = np.array(pil_image)
         gray = cv2.cvtColor(open_cv_image, cv2.COLOR_RGB2GRAY)
 
-        # ניגודיות אגרסיבית (Thresholding) - הופך רקע ללבן ואותיות לשחור מוחלט
-        # ערך ה-150 הוא סף הרגישות. כל פיקסל כהה מ-150 יהפוך לשחור.
-        _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)
+        # 1. המרה לתמונה בינארית הפוכה (רקע שחור, טקסט וקווים בלבן)
+        # זה נדרש כדי שהפעולות המורפולוגיות של OpenCV יעבדו נכון על האובייקטים המוארים
+        _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY_INV)
 
-        # חזרה לאובייקט PIL עבור Tesseract
-        return Image.fromarray(thresh)
+        # 2. זיהוי והסרת קווים אנכיים (עמודות טבלה)
+        # יצירת "מברשת" אנכית ארוכה. רק רצף פיקסלים באורך 20 ומעלה יזוהה כקו
+        vertical_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 20))
+        vertical_lines = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, vertical_kernel, iterations=2)
+        # החסרת הקווים האנכיים מהתמונה המקורית
+        thresh = cv2.subtract(thresh, vertical_lines)
+
+        # 3. זיהוי והסרת קווים אופקיים (שורות טבלה)
+        # יצירת "מברשת" אופקית ארוכה
+        horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (20, 1))
+        horizontal_lines = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, horizontal_kernel, iterations=2)
+        # החסרת הקווים האופקיים
+        thresh = cv2.subtract(thresh, horizontal_lines)
+
+        # 4. חזרה לתמונה רגילה (רקע לבן, טקסט שחור)
+        result = cv2.bitwise_not(thresh)
+
+        return Image.fromarray(result)
 
     def extract_elements(self, file_path: str) -> List[TextElement]:
         elements = []
