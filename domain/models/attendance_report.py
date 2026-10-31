@@ -1,11 +1,14 @@
-# domain/models/attendance_report.py
 from dataclasses import dataclass
-from typing import List
-from domain.models.attendance_row import AttendanceRow
-from domain.models.report_summary import ReportSummary
+from typing import List, Union
+from domain.models.type_a_row import TypeARow
+from domain.models.type_b_row import TypeBRow
+from domain.models.base_report_metadata import BaseReportMetadata
+from domain.models.base_report_summary import BaseReportSummary
 
 @dataclass
 class AttendanceReport:
+    """Root entity representing a fully parsed report."""
     report_type: str
-    rows: List[AttendanceRow]
-    summary: ReportSummary
+    metadata: BaseReportMetadata
+    rows: List[Union[TypeARow, TypeBRow]]
+    summary: BaseReportSummary

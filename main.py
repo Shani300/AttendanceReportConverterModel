@@ -1,16 +1,24 @@
-# This is a sample Python script.
-
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+from parsing.tesseract_spatial_extractor import TesseractSpatialExtractor
+from parsing.spatial_grouper import SpatialGrouper
 
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
+def main():
+    file_path_a = "docs/type_a_2.pdf"
+    file_path_b = "docs/type_b_1.pdf"
+
+    # 1. שלב החילוץ: קבלת כל המילים עם הקואורדינטות שלהן
+    extractor = TesseractSpatialExtractor()
+    elements = extractor.extract_elements(file_path_a)
+
+    # 2. שלב הקיבוץ: סידור המילים לשורות הגיוניות
+    grouper = SpatialGrouper()
+    spatial_lines = grouper.group_into_lines(elements)
+
+    # 3. הדפסת התוצאה לבדיקה (וידוא שהמספרים צמודים לכותרות)
+    for line in spatial_lines:
+        line_text = " ".join([el.text for el in line])
+        print(line_text)
 
 
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
-    print_hi('PyCharm')
-
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+if __name__ == "__main__":
+    main()
