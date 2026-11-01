@@ -1,6 +1,6 @@
 import pytest
 from infrastructure.file_reader_interface import IFileReader
-from parsing.classifier_interface import IClassifier
+from parsing.classifier_interface import IReportClassifier
 from parsing.base_parser import BaseParser
 from transformation.base_transformation_strategy import BaseTransformationStrategy
 from generation.generator_interface import IGenerator
@@ -12,7 +12,7 @@ def test_cannot_instantiate_interfaces():
         IFileReader()
 
     with pytest.raises(TypeError, match=ErrorMessages.INSTANTIATION_ERROR):
-        IClassifier()
+        IReportClassifier()
 
     with pytest.raises(TypeError, match=ErrorMessages.INSTANTIATION_ERROR):
         BaseTransformationStrategy()

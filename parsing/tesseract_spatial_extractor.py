@@ -1,4 +1,3 @@
-# parsing/tesseract_spatial_extractor.py
 import cv2
 import numpy as np
 import pytesseract
@@ -10,41 +9,30 @@ from parsing.spatial_extractor_interface import ISpatialExtractor
 from domain.models.text_element import TextElement
 from config.ocr_settings import OcrSettings
 
-
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-
 
 class TesseractSpatialExtractor(ISpatialExtractor):
 
-    # בתוך הקובץ: parsing/tesseract_spatial_extractor.py
-
     def _preprocess_image(self, pil_image: Image.Image) -> Image.Image:
-        """המרת התמונה לפורמט OpenCV, חידוד והעלמת קווי רשת של טבלאות"""
+        """עיבוד מקדים מתקדם לחידוד טקסט ותאריכים"""
         open_cv_image = np.array(pil_image)
         gray = cv2.cvtColor(open_cv_image, cv2.COLOR_RGB2GRAY)
 
-        # 1. המרה לתמונה בינארית הפוכה (רקע שחור, טקסט וקווים בלבן)
-        # זה נדרש כדי שהפעולות המורפולוגיות של OpenCV יעבדו נכון על האובייקטים המוארים
-        _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY_INV)
+        # 1. הגדלת התמונה (Upscaling) פי 2
+        # פעולה זו מעבה את הפיקסלים של תווים קטנים (כמו '/' ו-':') ומונעת את מחיקתם בשלב הבא.
+        gray = cv2.resize(gray, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC)
 
-        # 2. זיהוי והסרת קווים אנכיים (עמודות טבלה)
-        # יצירת "מברשת" אנכית ארוכה. רק רצף פיקסלים באורך 20 ומעלה יזוהה כקו
-        vertical_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 20))
-        vertical_lines = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, vertical_kernel, iterations=2)
-        # החסרת הקווים האנכיים מהתמונה המקורית
-        thresh = cv2.subtract(thresh, vertical_lines)
+        # 2. סף אדפטיבי (Adaptive Thresholding) במקום סף קבוע
+        # סף קבוע (150) נכשל כשהסריקה מעט חשוכה או בהירה באזורים שונים.
+        # הסף האדפטיבי בודק כל בלוק פיקסלים בנפרד (כאן בגודל 31x31) ומייצר שחור-לבן נקי ומדויק.
+        thresh = cv2.adaptiveThreshold(
+            gray, 255,
+            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY,
+            31, 2
+        )
 
-        # 3. זיהוי והסרת קווים אופקיים (שורות טבלה)
-        # יצירת "מברשת" אופקית ארוכה
-        horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (20, 1))
-        horizontal_lines = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, horizontal_kernel, iterations=2)
-        # החסרת הקווים האופקיים
-        thresh = cv2.subtract(thresh, horizontal_lines)
-
-        # 4. חזרה לתמונה רגילה (רקע לבן, טקסט שחור)
-        result = cv2.bitwise_not(thresh)
-
-        return Image.fromarray(result)
+        return Image.fromarray(thresh)
 
     def extract_elements(self, file_path: str) -> List[TextElement]:
         elements = []
@@ -56,7 +44,6 @@ class TesseractSpatialExtractor(ISpatialExtractor):
         )
 
         for image in images:
-            # הפעלת עיבוד התמונה לפני החילוץ
             processed_image = self._preprocess_image(image)
 
             data = pytesseract.image_to_data(
@@ -66,15 +53,19 @@ class TesseractSpatialExtractor(ISpatialExtractor):
                 output_type=Output.DICT
             )
 
+            # כיוון שהגדלנו את התמונה פי 2 בעיבוד המקדים, עלינו לחלק את
+            # הקואורדינטות המוחזרות ב-2 כדי שישמרו על פרופורציית הדף המקורית
+            scale_factor = 2.0
+
             n_boxes = len(data['text'])
             for i in range(n_boxes):
                 text = data['text'][i].strip()
 
                 if text:
-                    x0 = float(data['left'][i])
-                    top = float(data['top'][i])
-                    width = float(data['width'][i])
-                    height = float(data['height'][i])
+                    x0 = float(data['left'][i]) / scale_factor
+                    top = float(data['top'][i]) / scale_factor
+                    width = float(data['width'][i]) / scale_factor
+                    height = float(data['height'][i]) / scale_factor
 
                     elements.append(
                         TextElement(

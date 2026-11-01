@@ -2,8 +2,8 @@ import pytest
 from parsing.tesseract_spatial_extractor import TesseractSpatialExtractor
 from domain.models.text_element import TextElement
 import pytesseract
-from unittest.mock import patch, MagicMock
-
+from unittest.mock import patch
+from PIL import Image
 
 @patch('parsing.tesseract_spatial_extractor.convert_from_path')
 @patch('parsing.tesseract_spatial_extractor.pytesseract.image_to_data')
@@ -17,8 +17,9 @@ def test_extract_elements_returns_list_of_text_elements(mock_image_to_data, mock
         'height': [15, 15, 15]
     }
 
-    # הדמיית המרת ה-PDF לתמונה (מחזיר תמונה ריקה אחת לדוגמה)
-    mock_convert_from_path.return_value = [MagicMock()]
+    # יצירת תמונת דמה אמיתית מסוג PIL כדי ש-OpenCV לא יקרוס
+    dummy_image = Image.new('RGB', (200, 200), color=(255, 255, 255))
+    mock_convert_from_path.return_value = [dummy_image]
 
     extractor = TesseractSpatialExtractor()
     elements = extractor.extract_elements("dummy_path.pdf")
