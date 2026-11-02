@@ -8,3 +8,5 @@ class TextElement:
     top: float # קצה עליון
     x1: float  # קצה ימני
     bottom: float # קצה תחתון
+    page_number: int = 1
+    confidence: float = 0.0

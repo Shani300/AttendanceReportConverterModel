@@ -48,8 +48,8 @@ class TesseractSpatialExtractor(ISpatialExtractor):
 
             data = pytesseract.image_to_data(
                 processed_image,
-                lang=OcrSettings.LANGUAGE_HEBREW_ENGLISH,
-                config=OcrSettings.CUSTOM_CONFIG,
+                lang=OcrSettings.LANGUAGE_MIXED,
+                config=OcrSettings.SPATIAL_CONFIG,
                 output_type=Output.DICT
             )
 
@@ -76,5 +76,6 @@ class TesseractSpatialExtractor(ISpatialExtractor):
                             bottom=top + height
                         )
                     )
-
+        print("elements:")
+        print(elements)
         return elements
